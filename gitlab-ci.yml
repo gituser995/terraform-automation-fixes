@@ -1,0 +1,62 @@
+image: ubuntu:20.04
+
+stages:
+  - destroy-old-vpc
+  - deploy
+
+variables:
+  AWS_ACCESS_KEY_ID: ${MY_AWS_ACCESS_KEY}
+  AWS_SECRET_ACCESS_KEY: ${MY_SECRET_KEY}
+  AWS_DEFAULT_REGION: "us-west-2"
+  OLD_VPC_WORKSPACE: "old-vpc"
+  NEW_VPC_WORKSPACE: "new-vpc"
+
+before_script:
+  - apt-get update && apt-get install -y unzip curl
+  - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  - unzip awscliv2.zip
+  - ./aws/install
+  - curl "https://releases.hashicorp.com/terraform/1.0.10/terraform_1.0.10_linux_amd64.zip" -o "terraform.zip"
+  - unzip terraform.zip
+  - mv terraform /usr/local/bin/
+
+destroy-old-vpc:
+  stage: destroy-old-vpc
+  before_script:
+    - apt-get update && apt-get install -y unzip curl
+    - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    - unzip awscliv2.zip
+    - ./aws/install
+    - aws --version
+    - curl "https://releases.hashicorp.com/terraform/1.0.10/terraform_1.0.10_linux_amd64.zip" -o "terraform.zip"
+    - unzip terraform.zip
+    - mv terraform /usr/local/bin/
+    - terraform --version
+    - mkdir -p ~/.aws
+    - echo "$AWS_CREDENTIALS_FILE" > ~/.aws/credentials
+  script:
+    - aws s3 cp s3://tfbucket999/main.tf ./main.tf  # Copy the old Terraform configuration
+    - terraform init
+    - terraform workspace new $OLD_VPC_WORKSPACE || terraform workspace select $OLD_VPC_WORKSPACE
+    - terraform destroy -auto-approve  # Destroy the old VPC
+
+deploy:
+  stage: deploy
+  before_script:
+    - apt-get update && apt-get install -y unzip curl
+    - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    - unzip awscliv2.zip
+    - ./aws/install
+    - aws --version
+    - curl "https://releases.hashicorp.com/terraform/1.0.10/terraform_1.0.10_linux_amd64.zip" -o "terraform.zip"
+    - unzip terraform.zip
+    - mv terraform /usr/local/bin/
+    - terraform --version
+    - mkdir -p ~/.aws
+    - echo "$AWS_CREDENTIALS_FILE" > ~/.aws/credentials
+  script:
+    - aws s3 cp s3://tfbucket999/main.tf .  # Copy the new Terraform configuration
+    - terraform init
+    - terraform workspace new $NEW_VPC_WORKSPACE || terraform workspace select $NEW_VPC_WORKSPACE
+    - terraform apply -auto-approve  # Apply the new VPC configuration
+
